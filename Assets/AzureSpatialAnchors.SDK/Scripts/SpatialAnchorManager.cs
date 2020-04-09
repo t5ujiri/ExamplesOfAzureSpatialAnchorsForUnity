@@ -48,9 +48,9 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
     public class SpatialAnchorManager : MonoBehaviour
     {
         #region Member Variables
-        private bool isSessionStarted = false;
-        private CloudSpatialAnchorSession session = null;
-        private SessionStatus sessionStatus = null;
+        protected bool isSessionStarted = false;
+        protected CloudSpatialAnchorSession session = null;
+        protected SessionStatus sessionStatus = null;
 
         // Android-specific variables
 #if UNITY_ANDROID
@@ -58,13 +58,13 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
 #endif
         //ARFoundation specific variables
 #if UNITY_ANDROID || UNITY_IOS
-        private long lastFrameProcessedTimeStamp;
-        private static Dictionary<string, ARReferencePoint> pointerToReferencePoints = new Dictionary<string, ARReferencePoint>();
-        private List<AnchorLocatedEventArgs> pendingEventArgs = new List<AnchorLocatedEventArgs>();
-        internal static ARReferencePointManager arReferencePointManager = null;
-        private ARCameraManager arCameraManager = null;
-        private ARSession arSession = null;
-        private Camera mainCamera;
+        protected long lastFrameProcessedTimeStamp;
+        protected static Dictionary<string, ARAnchor> pointerToReferencePoints = new Dictionary<string, ARAnchor>();
+        protected List<AnchorLocatedEventArgs> pendingEventArgs = new List<AnchorLocatedEventArgs>();
+        internal static ARAnchorManager arReferencePointManager = null;
+        protected ARCameraManager arCameraManager = null;
+        protected ARSession arSession = null;
+        protected Camera mainCamera;
 #endif // UNITY_ANDROID
 
         #endregion // Member Variables
@@ -73,78 +73,41 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
         [Header("Authentication")]
         [SerializeField]
         [Tooltip("The method to use for authentication.")]
-        private AuthenticationMode authenticationMode = AuthenticationMode.ApiKey;
+        protected AuthenticationMode authenticationMode = AuthenticationMode.ApiKey;
 
         [Header("Credentials")]
         [SerializeField]
         [Tooltip("The Account ID to use when authenticating using API Key. This is provided by the Spatial Anchors service portal.")]
-        private string spatialAnchorsAccountId = "";
+        protected string spatialAnchorsAccountId = "";
 
         [SerializeField]
         [Tooltip("The Account Key to use when authenticating using API Key. This is provided by the Spatial Anchors service portal.")]
-        private string spatialAnchorsAccountKey = "";
+        protected string spatialAnchorsAccountKey = "";
 
         [Header("Credentials")]
         [SerializeField]
         [Tooltip("The Client ID to use when authenticating using Azure Active Directory.")]
-        private string clientId = "";
+        protected string clientId = "";
 
         [SerializeField]
         [Tooltip("The Tenant ID to use when authenticating using Azure Active Directory.")]
-        private string tenantId = "";
+        protected string tenantId = "";
 
         [Header("Logging")]
         [SerializeField]
         [Tooltip("The log level for messages from the Spatial Anchors service.")]
-        private SessionLogLevel logLevel = SessionLogLevel.All;
+        protected SessionLogLevel logLevel = SessionLogLevel.All;
         #endregion // Unity Inspector Variables
 
         #region Internal Methods
         /// <summary>
         /// Throws an exception if there is not a currently active session.
         /// </summary>
-        protected void EnsureSessionStarted()
+        private void EnsureSessionStarted()
         {
             if (!isSessionStarted)
             {
                 throw new InvalidOperationException("This operation cannot be completed without an active session.");
-            }
-        }
-
-        /// <summary>
-        /// Ensures that the manager has a valid configuration.
-        /// </summary>
-        /// <param name="disable">
-        /// If true, the manager will be disabled if configuration is invalid.
-        /// </param>
-        /// <param name="exception">
-        /// If true, an exception will be thrown if configuration is invalid.
-        /// </param>
-        private async Task<bool> EnsureValidConfiguration(bool disable, bool exception)
-        {
-            if (!await IsValidateConfiguration())
-            {
-                // Define message
-                string msg = $"{nameof(SpatialAnchorManager)} is improperly configured.";
-
-                // Disable or except?
-                if (disable)
-                {
-                    Debug.LogError(msg + " It has been disabled.");
-                    this.enabled = false;
-                }
-                else if (exception)
-                {
-                    throw new InvalidOperationException(msg);
-                }
-
-                // Not valid
-                return false;
-            }
-            else
-            {
-                // Valid!
-                return true;
             }
         }
 
@@ -188,7 +151,7 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
         /// </summary>
         /// <param name="intPtr">An ARKit or ARcore anchor pointer</param>
         /// <returns>A reference point if found or null</returns>
-        internal static ARReferencePoint ReferencePointFromPointer(IntPtr intPtr)
+        internal static ARAnchor ReferencePointFromPointer(IntPtr intPtr)
         {
             string key = intPtr.GetPlatformKey();
             if (pointerToReferencePoints.ContainsKey(key))
@@ -242,6 +205,44 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
 
         #region Overridables
         /// <summary>
+        /// Ensures that the manager has a valid configuration. This
+        /// method can be customized by inheritors.
+        /// </summary>
+        /// <param name="disable">
+        /// If true, the manager will be disabled if configuration is invalid.
+        /// </param>
+        /// <param name="exception">
+        /// If true, an exception will be thrown if configuration is invalid.
+        /// </param>
+        protected virtual async Task<bool> EnsureValidConfiguration(bool disable, bool exception)
+        {
+            if (!await IsValidateConfiguration())
+            {
+                // Define message
+                string msg = $"{nameof(SpatialAnchorManager)} is improperly configured.";
+
+                // Disable or except?
+                if (disable)
+                {
+                    Debug.LogError(msg + " It has been disabled.");
+                    this.enabled = false;
+                }
+                else if (exception)
+                {
+                    throw new InvalidOperationException(msg);
+                }
+
+                // Not valid
+                return false;
+            }
+            else
+            {
+                // Valid!
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Obtains an Azure Active Directory token for the application. This
         /// method can be customized by inheritors.
         /// </summary>
@@ -258,7 +259,7 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
             // TODO: Uncomment the lines below when supporting AAD
 
             /*
-            #if UNITY_WSA && !UNITY_EDITOR
+#if UNITY_WSA && !UNITY_EDITOR
             var authority = $"https://login.microsoftonline.com/{TenantId}";
 
             AuthenticationContext authenticationContext = new AuthenticationContext(authority);
@@ -266,11 +267,11 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
 
             return authenticationResult.AccessToken;
 
-            #else
+#else
 
             throw new NotSupportedException("Obtaining an AAD token is not supported on this platform.");
 
-            #endif
+#endif
             */
         }
 
@@ -343,10 +344,6 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
                     break;
 
                 case AuthenticationMode.AAD:
-                    if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(tenantId))
-                    {
-                        return false;
-                    }
                     break;
 
                 default:
@@ -545,9 +542,9 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
             // Raise the event
             SessionUpdated?.Invoke(this, args);
         }
-        #endregion // Overridables
+#endregion // Overridables
 
-        #region Event Handlers
+#region Event Handlers
         private async void Session_TokenRequired(object sender, TokenRequiredEventArgs args)
         {
             // Get the deferral
@@ -567,11 +564,11 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
         /// to Unity ARFoundation Reference Points.
         /// </summary>
         /// <param name="obj">Event args with information about what has changed.</param>
-        private void ARReferencePointManager_referencePointsChanged(ARReferencePointsChangedEventArgs obj)
+        private void ARReferencePointManager_referencePointsChanged(ARAnchorsChangedEventArgs obj)
         {
             lock (pointerToReferencePoints)
             {
-                foreach (ARReferencePoint aRReferencePoint in obj.added)
+                foreach (ARAnchor aRReferencePoint in obj.added)
                 {
                     string lookupkey = aRReferencePoint.nativePtr.GetPlatformPointer().GetPlatformKey();
                     if (!pointerToReferencePoints.ContainsKey(lookupkey))
@@ -580,7 +577,7 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
                     }
                 }
 
-                foreach (ARReferencePoint aRReferencePoint in obj.removed)
+                foreach (ARAnchor aRReferencePoint in obj.removed)
                 {
                     string toremove = null;
                     foreach (var kvp in pointerToReferencePoints)
@@ -598,7 +595,7 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
                     }
                 }
 
-                foreach (ARReferencePoint aRReferencePoint in obj.updated)
+                foreach (ARAnchor aRReferencePoint in obj.updated)
                 {
                     string lookupKey = aRReferencePoint.nativePtr.GetPlatformPointer().GetPlatformKey();
                     if (!pointerToReferencePoints.ContainsKey(lookupKey))
@@ -618,9 +615,9 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
             ProcessLatestFrame();
         }
 #endif
-        #endregion // Event Handlers
+#endregion // Event Handlers
 
-        #region Unity Overrides
+#region Unity Overrides
         /// <summary>
         /// Awake is called when the script instance is being loaded.
         /// </summary>
@@ -644,17 +641,17 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
         protected async virtual void Start()
         {
 #if UNITY_ANDROID || UNITY_IOS
+            mainCamera = Camera.main;
             arCameraManager = FindObjectOfType<ARCameraManager>();
-            mainCamera = arCameraManager.GetComponent<Camera>();
             arSession = FindObjectOfType<ARSession>();
-            arReferencePointManager = FindObjectOfType<ARReferencePointManager>();
+            arReferencePointManager = FindObjectOfType<ARAnchorManager>();
 #endif
 
             // Only allow the manager to start if it is properly configured.
             await EnsureValidConfiguration(disable: true, exception: false);
 
 #if UNITY_ANDROID || UNITY_IOS
-            arReferencePointManager.referencePointsChanged += ARReferencePointManager_referencePointsChanged;
+            arReferencePointManager.anchorsChanged += ARReferencePointManager_referencePointsChanged;
 #endif
         }
 
@@ -762,6 +759,9 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
 #else
             throw new NotSupportedException("The platform is not supported.");
 #endif
+
+            // Notify
+            OnSessionCreated();
         }
 
         /// <summary>
@@ -1073,7 +1073,7 @@ namespace Microsoft.Azure.SpatialAnchors.Unity
             {
                 return session;
             }
-            private set
+            protected set
             {
                 if (session != value)
                 {
